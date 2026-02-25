@@ -8,7 +8,7 @@ cd client
 npm install
 npm run dev
 
-### 🔹 Backend
+### Backend
 cd server
 npm install
 node servjs

@@ -1,7 +1,14 @@
-Run the application 
-Frontend :
-  cd client
-  npm run dev
-Backend :
- cd server
- node server.js
+# SkillSwap Universe
+
+### Run the Application
+
+### 🔹 Frontend
+```bash
+cd client
+npm install
+npm run dev
+
+### Backend
+cd server
+npm install
+node servjs

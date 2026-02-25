@@ -1,3 +1,4 @@
+Run the application 
 Frontend :
   cd client
   npm run dev

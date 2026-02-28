@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
+import socket from "../socket";
 
 const AuthContext = createContext();
 
@@ -6,15 +7,17 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Check for existing token on load
   useEffect(() => {
-    // Check for existing token and user data on load
     const token = localStorage.getItem("token");
     const userData = localStorage.getItem("user");
     
     if (token && userData) {
       try {
-        setUser(JSON.parse(userData));
+        const parsedUser = JSON.parse(userData);
+        setUser(parsedUser);
       } catch (e) {
+        console.error("Error parsing user data:", e);
         localStorage.removeItem("token");
         localStorage.removeItem("user");
       }
@@ -22,95 +25,56 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
-  const login = async (email, password, navigate) => {
-    try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await res.json();
-
-      if (res.ok && data.success) {
-        // Store token
-        localStorage.setItem("token", data.token);
-        // Store user data from login response
-        localStorage.setItem("user", JSON.stringify(data.user));
-        setUser(data.user);
-        navigate("/dashboard");
-        return { success: true };
-      } else {
-        return { success: false, error: data.msg || "Login failed" };
-      }
-    } catch (error) {
-      console.error("Login error:", error);
-      return { success: false, error: "Server error - is the server running?" };
+  // Emit user online when user logs in
+  useEffect(() => {
+    if (user && user._id) {
+      socket.emit("user_online", user._id);
     }
-  };
+  }, [user]);
 
-  const register = async (name, email, password, navigate) => {
-    try {
-      const res = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
-      });
-
-      const data = await res.json();
-
-      if (res.ok && data.success) {
-        navigate("/login");
-        return { success: true };
-      } else {
-        return { success: false, error: data.msg || "Registration failed" };
-      }
-    } catch (error) {
-      console.error("Register error:", error);
-      return { success: false, error: "Server error - is the server running?" };
-    }
-  };
-
-  const googleLogin = async (token, userData, navigate) => {
+  const login = async (token, userData, navigate) => {
     localStorage.setItem("token", token);
     localStorage.setItem("user", JSON.stringify(userData));
     setUser(userData);
+    
+    // Emit online status
+    if (userData._id) {
+      socket.emit("user_online", userData._id);
+    }
+    
+    navigate("/dashboard");
+  };
+
+  const register = async (token, userData, navigate) => {
+    localStorage.setItem("token", token);
+    localStorage.setItem("user", JSON.stringify(userData));
+    setUser(userData);
+    
+    // Emit online status
+    if (userData._id) {
+      socket.emit("user_online", userData._id);
+    }
+    
     navigate("/dashboard");
   };
 
   const logout = (navigate) => {
+    // Emit offline status before logging out
+    if (user && user._id) {
+      socket.emit("user_offline", user._id);
+    }
+    
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     setUser(null);
+    
     if (navigate) {
       navigate("/");
     }
   };
 
-  const refreshUser = async () => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
-
-    try {
-      const res = await fetch("/api/users/me", {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        }
-      });
-      
-      if (res.ok) {
-        const userData = await res.json();
-        setUser(userData);
-        localStorage.setItem("user", JSON.stringify(userData));
-      }
-    } catch (error) {
-      console.error("Error refreshing user:", error);
-    }
-  };
-
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, googleLogin, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, setUser, login, register, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );

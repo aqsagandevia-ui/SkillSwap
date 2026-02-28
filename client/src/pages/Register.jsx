@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import { authAPI } from "../services/api";
 
 export default function Register() {
   const navigate = useNavigate();
-  const { register } = useAuth();
 
   const [form, setForm] = useState({
     fullName: "",
@@ -59,15 +58,23 @@ export default function Register() {
 
     setIsLoading(true);
 
-    const result = await register(form.fullName, form.email, form.password, navigate);
-    
-    if (!result.success) {
-      alert(result.error || "Registration failed");
-    } else {
-      alert("Registration successful! Please login.");
+    try {
+      const response = await authAPI.register({
+        fullName: form.fullName,
+        email: form.email,
+        password: form.password
+      });
+      
+      if (response.data.success) {
+        alert("Registration successful! Please login.");
+        navigate("/login");
+      }
+    } catch (err) {
+      console.error("Registration error:", err);
+      alert(err.response?.data?.msg || "Registration failed");
+    } finally {
+      setIsLoading(false);
     }
-    
-    setIsLoading(false);
   };
 
   return (

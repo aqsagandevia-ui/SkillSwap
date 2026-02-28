@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import Navbar from "./components/Navbar";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 import Home from "./pages/Home";
 import BrowseSkills from "./pages/BrowseSkills";
@@ -9,62 +10,61 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Chat from "./pages/Chat";
 import Sessions from "./pages/Sessions";
-import Matches from "./pages/Matches";
-import AiMatches from "./pages/AiMatches";
-
-// Protected Route Component
-const ProtectedRoute = ({ children }) => {
-  const token = localStorage.getItem("token");
-  if (!token) {
-    return <Navigate to="/login" replace />;
-  }
-  return children;
-};
 
 export default function App() {
   return (
     <>
       <Navbar />
+
       <Routes>
-        {/* Public Routes */}
+        {/* Public routes */}
         <Route path="/" element={<Home />} />
-        <Route path="/browse" element={<BrowseSkills />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         
-        {/* Protected Routes */}
-        <Route path="/dashboard" element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        } />
-        <Route path="/profile" element={
-          <ProtectedRoute>
-            <Profile />
-          </ProtectedRoute>
-        } />
-        <Route path="/chat" element={
-          <ProtectedRoute>
-            <Chat />
-          </ProtectedRoute>
-        } />
-        <Route path="/sessions" element={
-          <ProtectedRoute>
-            <Sessions />
-          </ProtectedRoute>
-        } />
-        <Route path="/matches" element={
-          <ProtectedRoute>
-            <Matches />
-          </ProtectedRoute>
-        } />
-        <Route path="/ai-matches" element={
-          <ProtectedRoute>
-            <AiMatches />
-          </ProtectedRoute>
-        } />
+        {/* Protected routes */}
+        <Route 
+          path="/browse" 
+          element={
+            <ProtectedRoute>
+              <BrowseSkills />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/profile" 
+          element={
+            <ProtectedRoute>
+              <Profile />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/dashboard" 
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/sessions" 
+          element={
+            <ProtectedRoute>
+              <Sessions />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/chat" 
+          element={
+            <ProtectedRoute>
+              <Chat />
+            </ProtectedRoute>
+          } 
+        />
         
-        {/* Fallback */}
+        {/* Redirect unknown routes to home */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>

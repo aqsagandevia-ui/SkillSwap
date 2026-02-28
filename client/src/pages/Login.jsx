@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
 import { signInWithPopup } from "firebase/auth";
 import { auth, googleProvider } from "../firebase";
+import { useAuth } from "../context/AuthContext";
 
 const images = [
   "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=800&q=80",
@@ -12,13 +12,12 @@ const images = [
 
 export default function Login() {
   const navigate = useNavigate();
-  const { login, googleLogin: authGoogleLogin } = useAuth();
+  const { login } = useAuth();
 
   const [currentImage, setCurrentImage] = useState(0);
   const [form, setForm] = useState({ email: "", password: "" });
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -51,96 +50,122 @@ export default function Login() {
     if (errors[e.target.name]) {
       setErrors({ ...errors, [e.target.name]: "" });
     }
-    setErrorMessage("");
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (validateForm()) {
       setIsLoading(true);
-      setErrorMessage("");
       
-      const result = await login(form.email, form.password, navigate);
-      
-      if (!result.success) {
-        setErrorMessage(result.error || "Login failed");
+      try {
+        const res = await fetch("http://localhost:5000/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(form)
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          alert(data.msg || "Login failed");
+          setIsLoading(false);
+          return;
+        }
+
+        // Fetch user data
+        const userRes = await fetch("http://localhost:5000/api/users/me", {
+          headers: { "Authorization": `Bearer ${data.token}` }
+        });
+        const userData = await userRes.json();
+
+        // Use AuthContext login
+        login(data.token, userData, navigate);
+        
+      } catch (error) {
+        console.error("Login error:", error);
+        alert("Server error");
+        setIsLoading(false);
       }
-      
-      setIsLoading(false);
     }
   };
 
   const handleGoogleLogin = async () => {
     try {
       setIsLoading(true);
-      setErrorMessage("");
       const result = await signInWithPopup(auth, googleProvider);
       const token = await result.user.getIdToken();
 
-      const res = await fetch("/api/auth/google-login", {
+      const res = await fetch("http://localhost:5000/api/auth/google-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token }),
+        body: JSON.stringify({ token })
       });
 
       const data = await res.json();
 
-      if (data.success) {
-        await authGoogleLogin(data.token, data.user, navigate);
-      } else {
-        setErrorMessage(data.message || "Google login failed");
+      if (!res.ok) {
+        alert(data.message || "Google login failed");
+        setIsLoading(false);
+        return;
       }
+
+      // Use AuthContext login
+      login(data.token, data.user, navigate);
+      
     } catch (error) {
-      console.error("Google Login Error:", error);
-      setErrorMessage("Google login failed. Please try again.");
-    } finally {
+      console.error("Google login error:", error);
+      alert("Google login failed");
       setIsLoading(false);
     }
   };
 
   return (
     <div className="flex min-h-screen">
+      {/* Left Side - Image */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
         <div className="absolute inset-0">
           <img
             src={images[currentImage]}
-            alt="Background"
+            alt="Learning"
             className="w-full h-full object-cover transition-transform duration-700"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent"></div>
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/80 to-indigo-900/80"></div>
         </div>
         
+        {/* Image Dots */}
         <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-2">
-          {images.map((_, i) => (
+          {images.map((_, idx) => (
             <button
-              key={i}
-              onClick={() => setCurrentImage(i)}
+              key={idx}
+              onClick={() => setCurrentImage(idx)}
               className={`w-2 h-2 rounded-full transition-all ${
-                currentImage === i ? "bg-white w-6" : "bg-white/50"
+                idx === currentImage ? "bg-white w-8" : "bg-white/50"
               }`}
             />
           ))}
         </div>
 
-        <div className="absolute top-8 left-8">
-          <h1 className="text-3xl font-bold text-white">SkillSwap</h1>
+        {/* Content */}
+        <div className="relative z-10 flex flex-col justify-center px-12 text-white">
+          <h1 className="text-5xl font-bold mb-6 leading-tight">
+            Exchange Skills,<br />Grow Together
+          </h1>
+          <p className="text-xl opacity-90">
+            Connect with mentors worldwide and learn through live video sessions
+          </p>
         </div>
       </div>
 
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-white">
+      {/* Right Side - Form */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-gray-50">
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
             <h2 className="text-3xl font-bold text-gray-900">Welcome Back</h2>
-            <p className="text-gray-500 mt-2">Sign in to continue your skill journey</p>
+            <p className="text-gray-500 mt-2">Sign in to continue your learning journey</p>
           </div>
 
-          {errorMessage && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm">
-              {errorMessage}
-            </div>
-          )}
-
           <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Email */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Email Address
@@ -150,10 +175,10 @@ export default function Login() {
                 name="email"
                 value={form.email}
                 onChange={handleChange}
-                placeholder="you@example.com"
-                className={`w-full px-4 py-3 bg-gray-50 border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all ${
-                  errors.email ? "border-red-500" : "border-gray-200 focus:border-primary"
+                className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all ${
+                  errors.email ? "border-red-400" : "border-gray-200"
                 }`}
+                placeholder="you@example.com"
               />
               {errors.email && (
                 <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
@@ -165,6 +190,7 @@ export default function Login() {
               )}
             </div>
 
+            {/* Password */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Password
@@ -174,10 +200,10 @@ export default function Login() {
                 name="password"
                 value={form.password}
                 onChange={handleChange}
-                placeholder="••••••••"
-                className={`w-full px-4 py-3 bg-gray-50 border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all ${
-                  errors.password ? "border-red-500" : "border-gray-200 focus:border-primary"
+                className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all ${
+                  errors.password ? "border-red-400" : "border-gray-200"
                 }`}
+                placeholder="••••••••"
               />
               {errors.password && (
                 <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
@@ -189,6 +215,7 @@ export default function Login() {
               )}
             </div>
 
+            {/* Submit */}
             <button
               type="submit"
               disabled={isLoading}
@@ -208,15 +235,17 @@ export default function Login() {
             </button>
           </form>
 
+          {/* Divider */}
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-gray-200"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-4 bg-white text-gray-500">Or continue with</span>
+              <span className="px-4 bg-gray-50 text-gray-500">Or continue with</span>
             </div>
           </div>
 
+          {/* Google Button */}
           <button
             onClick={handleGoogleLogin}
             disabled={isLoading}
@@ -230,6 +259,7 @@ export default function Login() {
             <span className="font-medium text-gray-700">Continue with Google</span>
           </button>
 
+          {/* Sign Up Link */}
           <p className="text-center text-gray-600 mt-8">
             Don't have an account?{" "}
             <Link to="/register" className="text-primary font-semibold hover:text-primary/80 transition-colors">

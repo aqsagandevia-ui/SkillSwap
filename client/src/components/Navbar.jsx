@@ -36,20 +36,20 @@ export default function Navbar() {
               Browse Skills
               <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary transition-all duration-300 group-hover:w-full"></span>
             </Link>
-            {/* <Link 
+            <Link 
               to="/matches" 
               className="text-gray-700 hover:text-primary font-medium transition-colors duration-200 relative group"
             >
               Matches
               <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary transition-all duration-300 group-hover:w-full"></span>
-            </Link> */}
-            {/* <Link 
+            </Link> 
+             <Link 
               to="/ai-matches" 
               className="text-gray-700 hover:text-primary font-medium transition-colors duration-200 relative group"
             >
               AI Matches
               <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary transition-all duration-300 group-hover:w-full"></span>
-            </Link> */}
+            </Link>
             <Link 
               to="/dashboard" 
               className="text-gray-700 hover:text-primary font-medium transition-colors duration-200 relative group"
@@ -64,13 +64,13 @@ export default function Navbar() {
               Sessions
               <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary transition-all duration-300 group-hover:w-full"></span>
             </Link>
-            {/* <Link 
+            <Link 
               to="/chat" 
               className="text-gray-700 hover:text-primary font-medium transition-colors duration-200 relative group"
             >
               Chat
               <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary transition-all duration-300 group-hover:w-full"></span>
-            </Link> */}
+            </Link>
             <Link 
               to="/profile" 
               className="text-gray-700 hover:text-primary font-medium transition-colors duration-200 relative group"

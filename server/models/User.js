@@ -1,22 +1,6 @@
 const mongoose = require("mongoose");
 
 /* =========================
-   Skill Schema
-========================= */
-const skillSchema = new mongoose.Schema(
-  {
-    name: { type: String, required: true },
-    type: {
-      type: String,
-      enum: ["teach", "learn"],
-      required: true,
-    },
-    level: { type: String },
-  },
-  { _id: false }
-);
-
-/* =========================
    Availability Schema
 ========================= */
 const availabilitySchema = new mongoose.Schema(
@@ -35,6 +19,9 @@ const userSchema = new mongoose.Schema(
     // Basic Info
     name: { type: String, required: true },
     email: { type: String, unique: true, required: true },
+    bio: { type: String },
+    title: { type: String },
+    photo: { type: String },
 
     // 🔐 Normal Login
     password: { type: String }, // hashed password
@@ -48,7 +35,6 @@ const userSchema = new mongoose.Schema(
     resetOtpExpires: { type: Date },
 
     // 🔑 Google Login
-    photo: { type: String },
     provider: {
       type: String,
       enum: ["local", "google"],
@@ -58,10 +44,21 @@ const userSchema = new mongoose.Schema(
     // Role
     role: { type: String, default: "user" },
 
-    // SkillSwap Features
-    skills: [skillSchema],
+    // Availability for sessions
     availability: [availabilitySchema],
     trustScore: { type: Number, default: 0 },
+
+    // Skills the user can teach (has)
+    skills: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Skill"
+    }],
+
+    // Skills the user wants to learn (stored as plain objects)
+    skillsToLearn: {
+      type: [mongoose.Schema.Types.Mixed],
+      default: []
+    },
 
     // 💬 Realtime Chat
     isOnline: { type: Boolean, default: false },

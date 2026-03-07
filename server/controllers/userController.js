@@ -31,7 +31,7 @@ exports.getMentors = async (req, res) => {
 // Update profile (skills + availability + basic info + photo)
 exports.updateProfile = async (req, res) => {
   try {
-    const { name, title, bio, skills, availability, photo } = req.body;
+    const { name, title, bio, skills, skillsToLearn, availability, photo } = req.body;
 
     // Build update object
     const updateData = {};
@@ -55,7 +55,7 @@ exports.updateProfile = async (req, res) => {
       updateData.photo = photo;
     }
 
-    // Handle skills update
+    // Handle skills update (skills the user can teach)
     if (skills !== undefined) {
       if (!Array.isArray(skills)) {
         return res.status(400).json({ msg: "Skills must be an array" });
@@ -68,6 +68,20 @@ exports.updateProfile = async (req, res) => {
       updateData.skills = skills;
     }
 
+    // Handle skillsToLearn update (skills the user wants to learn)
+    if (skillsToLearn !== undefined) {
+      console.log("📝 Updating skillsToLearn:", skillsToLearn);
+      if (!Array.isArray(skillsToLearn)) {
+        return res.status(400).json({ msg: "Skills to learn must be an array" });
+      }
+      for (let skill of skillsToLearn) {
+        if (!skill.skillName) {
+          return res.status(400).json({ msg: "Each skill must have a name" });
+        }
+      }
+      updateData.skillsToLearn = skillsToLearn;
+    }
+
     // Handle availability update
     if (availability !== undefined) {
       if (!Array.isArray(availability)) {
@@ -76,14 +90,20 @@ exports.updateProfile = async (req, res) => {
       updateData.availability = availability;
     }
 
+    console.log("📝 Full updateData:", JSON.stringify(updateData));
+    console.log("📝 User ID being updated:", req.user.id);
+
     const user = await User.findByIdAndUpdate(
       req.user.id,
       updateData,
       { new: true }
     ).select("-password");
 
+    console.log("✅ User updated, result:", user ? "success" : "null");
+
     res.json({ message: "Profile updated", user });
   } catch (err) {
+    console.error("❌ Error updating profile:", err);
     res.status(500).json({ msg: err.message });
   }
 };
@@ -102,3 +122,4 @@ exports.getAllUsers = async (req, res) => {
     res.status(500).json({ msg: err.message });
   }
 };
+

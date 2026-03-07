@@ -16,6 +16,7 @@ const messageRoutes = require("./routes/messageRoutes");
 const matchRoutes = require("./routes/matchRoutes");
 const aiMatchRoutes = require("./routes/aiMatchRoutes");
 const sessionRoutes = require("./routes/sessionRoutes");
+const skillRoutes = require("./routes/skillRoutes");
 
 // =====================
 // App & Server
@@ -52,6 +53,8 @@ app.use("/api/messages", messageRoutes);
 app.use("/api/matches", matchRoutes);
 app.use("/api/ai", aiMatchRoutes);
 app.use("/api/session", sessionRoutes);
+
+app.use("/api/skills", skillRoutes);
 
 // Test Route
 app.get("/", (req, res) => {
@@ -272,3 +275,4 @@ const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`🚀 Server & Socket running on port ${PORT}`);
 });
+

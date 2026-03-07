@@ -14,9 +14,15 @@ exports.getSessions = async (req, res) => {
 };
 
 // Create new session request (learner sends request to teacher)
-exports.createSession = async (req, res) => {
+exports.createSession = async (req, res, next) => {
+  console.log('[SESSION CONTROLLER] createSession called');
+  console.log('[SESSION CONTROLLER] req.user:', req.user);
+  console.log('[SESSION CONTROLLER] req.body:', req.body);
+  
   const { teacherId, skill, date, time } = req.body;
   try {
+    console.log('[SESSION CONTROLLER] Creating session with:', { teacherId, learnerId: req.user.id, skill, date, time });
+    
     const session = await Session.create({
       teacher: teacherId,
       learner: req.user.id,
@@ -30,8 +36,10 @@ exports.createSession = async (req, res) => {
     // Populate teacher and learner details
     await session.populate("teacher learner", "name photo email");
 
+    console.log('[SESSION CONTROLLER] Session created successfully:', session._id);
     res.json({ message: "Session request sent", session });
   } catch (err) {
+    console.error('[SESSION CONTROLLER] Error creating session:', err);
     res.status(500).json({ msg: err.message });
   }
 };

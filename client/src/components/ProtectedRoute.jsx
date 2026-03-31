@@ -5,6 +5,7 @@ export default function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
   const location = useLocation();
 
+  // ⏳ Loader
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 to-secondary/10">
@@ -16,9 +17,11 @@ export default function ProtectedRoute({ children }) {
     );
   }
 
+  // ❌ Not logged in → redirect to login
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  // ✅ Logged in → allow access
   return children;
 }

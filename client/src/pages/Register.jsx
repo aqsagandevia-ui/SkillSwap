@@ -8,7 +8,8 @@ export default function Register() {
   const [form, setForm] = useState({
     fullName: "",
     email: "",
-    password: ""
+    password: "",
+    role: ""
   });
 
   const [errors, setErrors] = useState({});
@@ -40,6 +41,10 @@ export default function Register() {
       tempErrors.password = "Password must be at least 6 characters";
     }
 
+    if (!form.role) {
+      tempErrors.role = "Please select a role";
+    }
+
     setErrors(tempErrors);
     return Object.keys(tempErrors).length === 0;
   };
@@ -62,9 +67,10 @@ export default function Register() {
       const response = await authAPI.register({
         fullName: form.fullName,
         email: form.email,
-        password: form.password
+        password: form.password,
+        role: form.role
       });
-      
+
       if (response.data.success) {
         alert("Registration successful! Please login.");
         navigate("/login");
@@ -141,9 +147,8 @@ export default function Register() {
                 value={form.fullName}
                 onChange={handleChange}
                 placeholder="John Doe"
-                className={`w-full px-4 py-3 bg-gray-50 border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all ${
-                  errors.fullName ? "border-red-500" : "border-gray-200 focus:border-primary"
-                }`}
+                className={`w-full px-4 py-3 bg-gray-50 border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all ${errors.fullName ? "border-red-500" : "border-gray-200 focus:border-primary"
+                  }`}
               />
               {errors.fullName && (
                 <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
@@ -166,9 +171,8 @@ export default function Register() {
                 value={form.email}
                 onChange={handleChange}
                 placeholder="you@example.com"
-                className={`w-full px-4 py-3 bg-gray-50 border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all ${
-                  errors.email ? "border-red-500" : "border-gray-200 focus:border-primary"
-                }`}
+                className={`w-full px-4 py-3 bg-gray-50 border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all ${errors.email ? "border-red-500" : "border-gray-200 focus:border-primary"
+                  }`}
               />
               {errors.email && (
                 <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
@@ -177,6 +181,60 @@ export default function Register() {
                   </svg>
                   {errors.email}
                 </p>
+              )}
+            </div>
+
+            {/* Role Selection - Modern Radio UI */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                Select Role
+              </label>
+
+              <div className="grid grid-cols-2 gap-4">
+
+                {/* Mentor Option */}
+                <label
+                  className={`flex items-center justify-center gap-2 p-4 border rounded-xl cursor-pointer transition-all ${form.role === "mentor"
+                    ? "border-primary bg-primary/10"
+                    : "border-gray-200 hover:border-primary"
+                    }`}
+                >
+                  <input
+                    type="radio"
+                    name="role"
+                    value="mentor"
+                    checked={form.role === "mentor"}
+                    onChange={handleChange}
+                    className="hidden"
+                  />
+
+                  <span className="text-lg">🎓</span>
+                  <span className="font-medium text-gray-700">Mentor</span>
+                </label>
+
+                {/* Learner Option */}
+                <label
+                  className={`flex items-center justify-center gap-2 p-4 border rounded-xl cursor-pointer transition-all ${form.role === "learner"
+                    ? "border-primary bg-primary/10"
+                    : "border-gray-200 hover:border-primary"
+                    }`}
+                >
+                  <input
+                    type="radio"
+                    name="role"
+                    value="learner"
+                    checked={form.role === "learner"}
+                    onChange={handleChange}
+                    className="hidden"
+                  />
+
+                  <span className="text-lg">📚</span>
+                  <span className="font-medium text-gray-700">Learner</span>
+                </label>
+              </div>
+
+              {errors.role && (
+                <p className="mt-1 text-sm text-red-500">{errors.role}</p>
               )}
             </div>
 
@@ -191,9 +249,8 @@ export default function Register() {
                 value={form.password}
                 onChange={handleChange}
                 placeholder="••••••••"
-                className={`w-full px-4 py-3 bg-gray-50 border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all ${
-                  errors.password ? "border-red-500" : "border-gray-200 focus:border-primary"
-                }`}
+                className={`w-full px-4 py-3 bg-gray-50 border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all ${errors.password ? "border-red-500" : "border-gray-200 focus:border-primary"
+                  }`}
               />
               {errors.password && (
                 <p className="mt-1 text-sm text-red-500 flex items-center gap-1">

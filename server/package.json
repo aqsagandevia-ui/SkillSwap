@@ -19,8 +19,9 @@
     "firebase-admin": "^13.6.0",
     "googleapis": "^144.0.0",
     "jsonwebtoken": "^9.0.3",
+    "mongodb": "^7.1.0",
     "mongoose": "^9.1.5",
-    "nodemailer": "^8.0.1",
+    "nodemailer": "^8.0.2",
     "socket.io": "^4.8.3",
     "string-similarity": "^4.0.4"
   },

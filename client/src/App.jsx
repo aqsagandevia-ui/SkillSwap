@@ -13,6 +13,8 @@ import Chat from "./pages/Chat";
 import Sessions from "./pages/Sessions";
 import Matches from "./pages/Matches";
 import OAuthCallback from "./pages/OAuthCallback";
+import SkillDetails from "./pages/SkillDetails";
+import MentorProfile from "./pages/MentorProfile";
 
 export default function App() {
   return (
@@ -21,68 +23,99 @@ export default function App() {
 
       <main className="pt-16 min-h-screen">
         <Routes>
-        {/* Public routes */}
-        <Route path="/" element={<Home />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/oauth-callback" element={<OAuthCallback />} />
-        
-        {/* Protected routes */}
-        <Route 
-          path="/browse" 
-          element={
-            <ProtectedRoute>
-              <BrowseSkills />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/profile" 
-          element={
-            <ProtectedRoute>
-              <Profile />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/dashboard" 
-          element={
-            <ProtectedRoute>
-              <Dashboard />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/sessions" 
-          element={
-            <ProtectedRoute>
-              <Sessions />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/chat" 
-          element={
-            <ProtectedRoute>
-              <Chat />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/matches" 
-          element={
-            <ProtectedRoute>
-              <Matches />
-            </ProtectedRoute>
-          } 
-        />
-        
-{/* Redirect unknown routes to home */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+          {/* ✅ Public Routes */}
+          <Route path="/" element={<Home />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/oauth-callback" element={<OAuthCallback />} />
+
+          <Route
+            path="/skill/:title"
+            element={
+              <ProtectedRoute>
+                <SkillDetails />
+              </ProtectedRoute>
+            }
+          />
+          {/* 🔐 Protected Skill Details (IMPORTANT FIX) */}
+          <Route
+            path="/skill-details"
+            element={
+              <ProtectedRoute>
+                <SkillDetails />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* 🔐 Other Protected Routes */}
+          <Route
+            path="/browse"
+            element={
+              <ProtectedRoute>
+                <BrowseSkills />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <Profile />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/sessions"
+            element={
+              <ProtectedRoute>
+                <Sessions />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/chat"
+            element={
+              <ProtectedRoute>
+                <Chat />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/matches"
+            element={
+              <ProtectedRoute>
+                <Matches />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/mentor/:id"
+            element={
+              <ProtectedRoute>
+                <MentorProfile />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* 🔁 Redirect unknown routes */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
     </>
   );
 }
-

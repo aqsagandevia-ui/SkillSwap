@@ -1,4 +1,7 @@
 import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { useEffect } from "react";
+import { useLocation } from "react-router-dom";
 
 const skills = [
   {
@@ -64,6 +67,18 @@ const features = [
 ];
 
 export default function Home() {
+
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    if (location.hash) {
+      const el = document.getElementById(location.hash.replace("#", ""));
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth" });
+      }
+    }
+  }, [location]);
   return (
     <div className="pt-16">
       {/* HERO SECTION */}
@@ -82,7 +97,7 @@ export default function Home() {
                 <span className="w-2 h-2 bg-primary rounded-full animate-pulse"></span>
                 Start Learning Today
               </div>
-              
+
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-tight text-gray-900">
                 Learn by <span className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Sharing</span>
                 <br />
@@ -94,7 +109,7 @@ export default function Home() {
               </p>
 
               <div className="mt-8 flex flex-wrap gap-4">
-                <Link 
+                <Link
                   to="/register"
                   className="inline-flex items-center gap-2 bg-gradient-to-r from-primary to-indigo-600 text-white px-8 py-4 rounded-xl font-semibold shadow-lg shadow-primary/30 hover:shadow-xl hover:shadow-primary/40 hover:-translate-y-1 transition-all duration-300"
                 >
@@ -103,7 +118,7 @@ export default function Home() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                   </svg>
                 </Link>
-                <Link 
+                <Link
                   to="/browse"
                   className="inline-flex items-center gap-2 bg-white text-gray-700 px-8 py-4 rounded-xl font-semibold border-2 border-gray-100 hover:border-primary/30 hover:shadow-lg hover:-translate-y-1 transition-all duration-300"
                 >
@@ -115,9 +130,9 @@ export default function Home() {
               <div className="mt-10 flex items-center gap-6">
                 <div className="flex -space-x-3">
                   {[1, 2, 3, 4, 5].map((i) => (
-                    <img 
+                    <img
                       key={i}
-                      src={`https://i.pravatar.cc/40?img=${i + 10}`} 
+                      src={`https://i.pravatar.cc/40?img=${i + 10}`}
                       alt="User"
                       className="w-10 h-10 rounded-full border-2 border-white"
                     />
@@ -181,7 +196,7 @@ export default function Home() {
 
           <div className="grid md:grid-cols-3 gap-8">
             {features.map((feature, index) => (
-              <div 
+              <div
                 key={index}
                 className="group p-8 rounded-3xl bg-gray-50 hover:bg-gradient-to-br hover:from-indigo-50 hover:to-emerald-50 transition-all duration-300 card-hover"
               >
@@ -223,13 +238,13 @@ export default function Home() {
       </div>
 
       {/* POPULAR SKILLS */}
-      <div className="max-w-7xl mx-auto px-6 py-20">
+      <div id="popular-skills" className="max-w-7xl mx-auto px-6 py-20">
         <div className="flex justify-between items-end mb-12">
-          <div>
+          <div id="popular-skills" className="max-w-7xl mx-auto px-6 py-20">
             <h2 className="text-3xl font-bold text-gray-900">Popular Skills</h2>
             <p className="text-gray-500 mt-2">Discover trending skill exchanges</p>
           </div>
-          <Link 
+          <Link
             to="/browse"
             className="hidden sm:flex items-center gap-2 text-primary font-semibold hover:gap-3 transition-all"
           >
@@ -264,7 +279,14 @@ export default function Home() {
                 <p className="text-sm text-gray-500 mt-1 flex items-center gap-1">
                   <span className="text-secondary">↔</span> Wants: {skill.wants}
                 </p>
-                <button className="mt-4 w-full bg-gradient-to-r from-primary to-indigo-600 text-white py-2.5 rounded-xl font-medium hover:shadow-lg transition-all duration-300 group-hover:shadow-primary/30">
+                <button
+                  onClick={() =>
+                    navigate(`/skill/${encodeURIComponent(skill.title)}`, {
+                      state: { skill }
+                    })
+                  }
+                  className="mt-4 w-full bg-gradient-to-r from-primary to-indigo-600 text-white py-2.5 rounded-xl"
+                >
                   Request Swap
                 </button>
               </div>
@@ -273,7 +295,7 @@ export default function Home() {
         </div>
 
         <div className="mt-8 text-center sm:hidden">
-          <Link 
+          <Link
             to="/browse"
             className="inline-flex items-center gap-2 text-primary font-semibold"
           >
@@ -299,13 +321,13 @@ export default function Home() {
             Join thousands of learners and educators who are already exchanging skills and growing together.
           </p>
           <div className="flex flex-wrap justify-center gap-4">
-            <Link 
+            <Link
               to="/register"
               className="bg-white text-primary px-8 py-4 rounded-xl font-semibold shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
             >
               Get Started Free
             </Link>
-            <Link 
+            <Link
               to="/browse"
               className="bg-white/10 text-white px-8 py-4 rounded-xl font-semibold border-2 border-white/30 hover:bg-white/20 transition-all duration-300"
             >

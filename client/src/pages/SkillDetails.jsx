@@ -94,12 +94,12 @@ export default function SkillDetails() {
 
     "Graphic Design": [
       {
-        name: "Sneha Patel",
+        name: "Sneh Patel",
         exp: "UI/UX Designer (4 yrs)",
         img: "https://i.pravatar.cc/150?img=12",
       },
       {
-        name: "Neha Shah",
+        name: "Nehal Shah",
         exp: "Brand Designer",
         img: "https://i.pravatar.cc/150?img=14",
       },
@@ -133,12 +133,12 @@ export default function SkillDetails() {
 
     "Mobile Apps": [
       {
-        name: "Vikas Kumar",
+        name: "Neha Shah",
         exp: "Flutter Developer",
         img: "https://i.pravatar.cc/150?img=19",
       },
       {
-        name: "Deepak Yadav",
+        name: "Deepika Yadav",
         exp: "React Native Expert",
         img: "https://i.pravatar.cc/150?img=20",
       },
@@ -146,7 +146,7 @@ export default function SkillDetails() {
 
     Photography: [
       {
-        name: "Arjun Patel",
+        name: "Amita Patel",
         exp: "Professional Photographer",
         img: "https://i.pravatar.cc/150?img=21",
       },

@@ -3,7 +3,7 @@ const Skill = require("../models/Skill");
 // Add a new skill
 exports.addSkill = async (req, res) => {
   try {
-    const { skillName, category, description, experienceLevel } = req.body;
+    const { skillName, category, description, experienceLevel, image, overview, benefits, useCases } = req.body;
     
     console.log("📝 Adding skill - Body:", req.body);
     console.log("📝 User from auth:", req.user);
@@ -21,7 +21,11 @@ exports.addSkill = async (req, res) => {
       skillName: skillName.trim(),
       category: category || "other",
       description: description || "",
-      experienceLevel: experienceLevel || "intermediate"
+      experienceLevel: experienceLevel || "intermediate",
+      image: image || null,
+      overview: overview || "",
+      benefits: benefits || "",
+      useCases: useCases || ""
     });
     
     await newSkill.save();
@@ -46,7 +50,7 @@ exports.getMySkills = async (req, res) => {
 // Get all skills (for browsing)
 exports.getAllSkills = async (req, res) => {
   try {
-    const { category, search } = req.query;
+    const { category, search, user } = req.query;
     let query = {};
     
     if (category && category !== "all") {
@@ -57,7 +61,11 @@ exports.getAllSkills = async (req, res) => {
       query.skillName = { $regex: search, $options: "i" };
     }
     
-    const skills = await Skill.find(query).populate("user", "name photo title bio").sort({ createdAt: -1 });
+    if (user) {
+      query.user = user;
+    }
+    
+    const skills = await Skill.find(query).populate("user", "name photo title bio _id yearsOfExperience").sort({ createdAt: -1 });
     res.json(skills);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -83,7 +91,7 @@ exports.deleteSkill = async (req, res) => {
 // Update a skill
 exports.updateSkill = async (req, res) => {
   try {
-    const { skillName, category, description, experienceLevel } = req.body;
+    const { skillName, category, description, experienceLevel, image, overview, benefits, useCases } = req.body;
     
     const skill = await Skill.findOne({ _id: req.params.id, user: req.user.id });
     
@@ -95,6 +103,10 @@ exports.updateSkill = async (req, res) => {
     if (category) skill.category = category;
     if (description !== undefined) skill.description = description;
     if (experienceLevel) skill.experienceLevel = experienceLevel;
+    if (image !== undefined) skill.image = image;
+    if (overview !== undefined) skill.overview = overview;
+    if (benefits !== undefined) skill.benefits = benefits;
+    if (useCases !== undefined) skill.useCases = useCases;
     
     await skill.save();
     res.json({ message: "Skill updated successfully", skill });

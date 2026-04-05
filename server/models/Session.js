@@ -4,7 +4,8 @@ const mongoose = require("mongoose");
    Session Schema
 ========================= */
 const sessionSchema = new mongoose.Schema({
-  teacher: {
+  // Participants
+  mentor: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
     required: true,
@@ -14,67 +15,70 @@ const sessionSchema = new mongoose.Schema({
     ref: "User",
     required: true,
   },
-  skill: {
-    type: String,
-    required: true,
-  },
-  requestId: {
+  
+  // Skill being taught
+  skillTopic: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "SkillRequest",
-    required: false, // Made optional - can be linked later if needed
+    ref: "Skill",
+    required: false,
   },
-  liveLink: {
-    type: String,
-    default: null,
+  
+  // Session scheduling
+  scheduledAt: {
+    type: Date,
   },
-  googleEventId: {
-    type: String,
-    default: null,
+  
+  duration: {
+    type: Number, // in minutes
+    default: 60
   },
-  date: {
-    type: String,
-  },
-  time: {
-    type: String,
-  },
-  // Legacy fields for backward compatibility
-  sessionDate: {
-    type: String,
-  },
-  sessionTime: {
-    type: String,
-  },
-  googleMeetLink: {
-    type: String,
-    default: null,
-  },
-  teacherId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User",
-  },
+  
+  // Session details
   status: {
     type: String,
-    enum: ["pending", "accepted", "completed", "rejected", "cancelled"],
-    default: "pending",
+    enum: ["scheduled", "ongoing", "completed", "cancelled", "no-show"],
+    default: "scheduled",
   },
-  rating: {
-    type: Number,
-    default: 0,
+  
+  // Meeting link
+  meetingLink: {
+    type: String,
+    default: null,
   },
-  feedback: {
+  
+  // Completion
+  completedAt: {
+    type: Date,
+  },
+  
+  // Feedback (stored separately, but can be linked to reviews)
+  mentorFeedback: {
     type: String,
   },
+  learnerFeedback: {
+    type: String,
+  },
+  
+  // Messages during session
   messages: [{
     sender: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User"
     },
     text: String,
-    createdAt: {
+    sentAt: {
       type: Date,
       default: Date.now
     }
   }],
+  
+  // Link to skill request if applicable
+  skillRequest: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "SkillRequest",
+  },
+  
+  // Timestamps
   createdAt: {
     type: Date,
     default: Date.now,
@@ -89,6 +93,12 @@ const sessionSchema = new mongoose.Schema({
 sessionSchema.pre("save", async function () {
   this.updatedAt = Date.now();
 });
+
+// Index for efficient queries
+sessionSchema.index({ mentor: 1 });
+sessionSchema.index({ learner: 1 });
+sessionSchema.index({ status: 1 });
+sessionSchema.index({ scheduledAt: 1 });
 
 module.exports = mongoose.model("Session", sessionSchema);
 

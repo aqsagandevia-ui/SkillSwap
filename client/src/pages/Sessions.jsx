@@ -1,20 +1,25 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 export default function Sessions() {
+  const navigate = useNavigate();
+  const { state } = useLocation();
+
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [currentUser, setCurrentUser] = useState(null);
   const [showRequestModal, setShowRequestModal] = useState(false);
-  const [selectedTeacher, setSelectedTeacher] = useState(null);
-  const [requestForm, setRequestForm] = useState({ skill: "", date: "", time: "" });
+  const [selectedTeacher, setSelectedTeacher] = useState(state?.mentor || null);
+  const [requestForm, setRequestForm] = useState({ 
+    skill: state?.skill?.skillName || "", 
+    date: "", 
+    time: "" 
+  });
   const [sendingRequest, setSendingRequest] = useState(false);
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [editingSessionId, setEditingSessionId] = useState(null);
   const [meetingLinkInput, setMeetingLinkInput] = useState("");
-
-  const navigate = useNavigate();
 
   // Get current user from localStorage
   useEffect(() => {
@@ -28,6 +33,13 @@ export default function Sessions() {
     }
     fetchSessions();
   }, []);
+
+  // Auto-open request modal if mentor is passed from MentorProfile
+  useEffect(() => {
+    if (state?.mentor) {
+      setShowRequestModal(true);
+    }
+  }, [state?.mentor]);
 
   const fetchSessions = async () => {
     const token = localStorage.getItem("token");
@@ -128,6 +140,10 @@ export default function Sessions() {
     setSendingRequest(true);
 
     try {
+      // Generate a unique Google Meet URL
+      const meetingId = generateMeetingId();
+      const googleMeetLink = `https://meet.google.com/${meetingId}`;
+
       const response = await fetch("/api/session", {
         method: "POST",
         headers: {
@@ -138,7 +154,8 @@ export default function Sessions() {
           teacherId: selectedTeacher._id,
           skill: requestForm.skill,
           date: requestForm.date,
-          time: requestForm.time
+          time: requestForm.time,
+          liveLink: googleMeetLink
         })
       });
 
@@ -151,14 +168,27 @@ export default function Sessions() {
       setSessions([data.session, ...sessions]);
       setShowRequestModal(false);
       setSelectedTeacher(null);
-      setRequestForm({ skill: "", date: "", time: "" });
-      alert("Session request sent successfully!");
+      setRequestForm({ skill: state?.skill?.skillName || "", date: "", time: "" });
+      alert("Session scheduled! Google Meet link has been created.");
     } catch (err) {
       console.error("Error sending request:", err);
       alert(err.message);
     } finally {
       setSendingRequest(false);
     }
+  };
+
+  // Generate unique Google Meet ID
+  const generateMeetingId = () => {
+    const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+    let result = "";
+    for (let i = 0; i < 3; i++) {
+      for (let j = 0; j < 4; j++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      if (i < 2) result += "-";
+    }
+    return result;
   };
 
   const getStatusColor = (status) => {
@@ -282,34 +312,32 @@ export default function Sessions() {
                       </button>
                     )}
 
-                    {/* Show Join button for accepted sessions with valid link */}
-{session.status === "accepted" && session.liveLink && (
+                    {/* Show Join Google Meet button for accepted sessions */}
+                    {session.status === "accepted" && session.liveLink && (
                       <a
                         href={session.liveLink}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="block w-full text-center py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-medium rounded-xl hover:shadow-lg transition-all"
+                        className="block w-full text-center py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-medium rounded-xl hover:shadow-lg transition-all mb-2"
                       >
-                        Join Session
+                        🎥 Join Google Meet
                       </a>
                     )}
 
-                    {/* Show button to add/update meeting link for teachers */}
-                    {amITeacher && session.status === "accepted" && (
+                    {/* Show button to update meeting link for teachers if needed */}
+                    {amITeacher && session.status === "accepted" && session.liveLink && (
                       <button
                         onClick={() => openLinkModal(session)}
-                        className="w-full py-2 mt-2 bg-blue-500 text-white font-medium rounded-xl hover:bg-blue-600 transition-all text-sm"
+                        className="w-full py-2 bg-gray-400 text-white font-medium rounded-xl hover:bg-gray-500 transition-all text-sm"
                       >
-{session.liveLink 
-                          ? "Update Meeting Link" 
-                          : "Add Meeting Link"}
+                        Change Meeting Link
                       </button>
                     )}
 
                     {/* Show waiting message for learners when no valid link */}
-{!amITeacher && session.status === "accepted" && !session.liveLink && (
-                      <div className="text-center py-2 text-sm text-gray-500">
-                        Waiting for teacher to add meeting link...
+                    {!amITeacher && session.status === "accepted" && !session.liveLink && (
+                      <div className="text-center py-2 text-sm text-gray-500 bg-yellow-50 rounded-xl p-2">
+                        ⏳ Waiting for teacher to confirm...
                       </div>
                     )}
 
@@ -336,13 +364,103 @@ export default function Sessions() {
         )}
       </div>
 
-      {/* Modal for entering meeting link */}
+      {/* Modal for requesting session */}
+      {showRequestModal && selectedTeacher && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md mx-4">
+            <h3 className="text-xl font-semibold mb-4">Schedule Learning Session</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Mentor: <span className="font-semibold">{selectedTeacher.name}</span>
+            </p>
+            
+            <form onSubmit={handleSendRequest} className="space-y-4">
+              {/* Skill */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Skill
+                </label>
+                <input
+                  type="text"
+                  value={requestForm.skill}
+                  onChange={(e) =>
+                    setRequestForm({ ...requestForm, skill: e.target.value })
+                  }
+                  placeholder="e.g., Web Development"
+                  required
+                  className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
+              </div>
+
+              {/* Date */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Session Date
+                </label>
+                <input
+                  type="date"
+                  value={requestForm.date}
+                  onChange={(e) =>
+                    setRequestForm({ ...requestForm, date: e.target.value })
+                  }
+                  required
+                  className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
+              </div>
+
+              {/* Time */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Session Time
+                </label>
+                <input
+                  type="time"
+                  value={requestForm.time}
+                  onChange={(e) =>
+                    setRequestForm({ ...requestForm, time: e.target.value })
+                  }
+                  required
+                  className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
+                <p className="text-sm text-blue-700">
+                  ✓ A Google Meet link will be automatically created for this session
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowRequestModal(false);
+                    setSelectedTeacher(null);
+                    setRequestForm({ skill: state?.skill?.skillName || "", date: "", time: "" });
+                  }}
+                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={sendingRequest || !requestForm.skill || !requestForm.date || !requestForm.time}
+                  className="flex-1 px-4 py-2 bg-gradient-to-r from-primary to-indigo-600 text-white rounded-xl hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {sendingRequest ? "Scheduling..." : "Schedule Session"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal for updating meeting link */}
       {showLinkModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md mx-4">
-            <h3 className="text-lg font-semibold mb-4">Add Meeting Link</h3>
+            <h3 className="text-lg font-semibold mb-4">Change Meeting Link</h3>
             <p className="text-sm text-gray-500 mb-4">
-              Create a Google Meet or Zoom meeting and paste the link here to share with the learner.
+              If you need to use a different meeting link, you can change it here.
             </p>
             <input
               type="url"

@@ -12,15 +12,43 @@ const availabilitySchema = new mongoose.Schema(
 );
 
 /* =========================
+   Review Schema
+========================= */
+const reviewSchema = new mongoose.Schema(
+  {
+    fromUser: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User"
+    },
+    rating: { type: Number, min: 1, max: 5 },
+    comment: { type: String },
+    createdAt: { type: Date, default: Date.now }
+  },
+  { _id: false }
+);
+
+/* =========================
+   Portfolio Project Schema
+========================= */
+const portfolioSchema = new mongoose.Schema(
+  {
+    title: { type: String },
+    description: { type: String },
+    link: { type: String },
+    addedAt: { type: Date, default: Date.now }
+  },
+  { _id: false }
+);
+
+/* =========================
    User Schema
 ========================= */
 const userSchema = new mongoose.Schema(
   {
-    // Basic Info
+    // Basic Info (for both roles)
     name: { type: String, required: true },
     email: { type: String, unique: true, required: true },
     bio: { type: String },
-    title: { type: String },
     photo: { type: String },
 
     // 🔐 Normal Login
@@ -41,24 +69,71 @@ const userSchema = new mongoose.Schema(
       default: "local",
     },
 
-    // Role
-    role: { type: String, default: "user" },
+    // Role (learner or mentor)
+    role: { 
+      type: String, 
+      enum: ["user", "learner", "mentor"],
+      required: true,
+      default: "learner"
+    },
 
-    // Availability for sessions
-    availability: [availabilitySchema],
-    trustScore: { type: Number, default: 0 },
+    // ==================== LEARNER SPECIFIC FIELDS ====================
+    // Skills the user wants to learn
+    skillsToLearn: {
+      type: [mongoose.Schema.Types.Mixed],
+      default: []
+    },
 
-    // Skills the user can teach (has)
+    // Learning goals
+    learningGoals: { type: String },
+
+    // Sessions completed
+    sessionsCompleted: { type: Number, default: 0 },
+
+    // ==================== MENTOR SPECIFIC FIELDS ====================
+    // Skills the user can teach (teaching experience)
     skills: [{
       type: mongoose.Schema.Types.ObjectId,
       ref: "Skill"
     }],
 
-    // Skills the user wants to learn (stored as plain objects)
-    skillsToLearn: {
-      type: [mongoose.Schema.Types.Mixed],
+    // Professional experience
+    qualifications: {
+      type: [String],
       default: []
     },
+
+    certifications: {
+      type: [String],
+      default: []
+    },
+
+    yearsOfExperience: { type: Number },
+
+    areasOfExpertise: {
+      type: [String],
+      default: []
+    },
+
+    // Teaching style / description
+    teachingStyle: { type: String },
+
+    // Availability for sessions (for mentors)
+    availability: [availabilitySchema],
+
+    // Portfolio / Linked projects
+    portfolio: [portfolioSchema],
+
+    // ==================== SHARED RATING & REVIEWS ====================
+    // Average rating (calculated from reviews)
+    rating: { type: Number, default: 0, min: 0, max: 5 },
+
+    // Reviews received
+    reviewsReceived: [reviewSchema],
+
+    // ==================== COMMON FIELDS ====================
+    // Trust score
+    trustScore: { type: Number, default: 0 },
 
     // 💬 Realtime Chat
     isOnline: { type: Boolean, default: false },

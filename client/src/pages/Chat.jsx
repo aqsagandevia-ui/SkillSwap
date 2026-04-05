@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import socket, { isSocketConnected, onSocketConnected } from "../socket";
 
 // API Base URL - use empty string for relative URLs
@@ -7,6 +7,7 @@ const API_URL = "";
 
 export default function Chat() {
   const navigate = useNavigate();
+  const { state } = useLocation();
   
   // Check if user is logged in
   const token = localStorage.getItem("token");
@@ -32,6 +33,16 @@ export default function Chat() {
       navigate("/login");
     }
   }, [token, currentUser, navigate]);
+
+  // Auto-select mentor if passed from MentorProfile
+  useEffect(() => {
+    if (state?.mentor && allUsers.length > 0) {
+      const mentorUser = allUsers.find(u => u._id === state.mentor._id);
+      if (mentorUser) {
+        setSelectedUser(mentorUser);
+      }
+    }
+  }, [state?.mentor, allUsers]);
 
   // Track socket connection status
   useEffect(() => {
@@ -477,11 +488,17 @@ return (
                 }`}
               >
                 <div className="relative flex-shrink-0">
-                  <img
-                    src={conv.user?.photo || `https://i.pravatar.cc/40?u=${conv.user?._id}`}
-                    alt={conv.user?.name}
-                    className="w-14 h-14 rounded-2xl object-cover shadow-md"
-                  />
+                  {conv.user?.photo ? (
+                    <img
+                      src={conv.user?.photo}
+                      alt={conv.user?.name}
+                      className="w-14 h-14 rounded-2xl object-cover shadow-md"
+                    />
+                  ) : (
+                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-400 to-purple-400 flex items-center justify-center text-xl shadow-md">
+                      👤
+                    </div>
+                  )}
                   {conv.user?.isOnline && (
                     <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-500 border-3 border-white rounded-xl"></span>
                   )}

@@ -28,17 +28,45 @@ exports.getMentors = async (req, res) => {
   }
 };
 
+// Get a single user by ID (for viewing mentor profiles)
+exports.getUserById = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select("-password");
+    if (!user) {
+      return res.status(404).json({ msg: "User not found" });
+    }
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+};
+
 // Update profile (skills + availability + basic info + photo)
 exports.updateProfile = async (req, res) => {
   try {
-    const { name, title, bio, skills, skillsToLearn, availability, photo } = req.body;
+    const { 
+      name, 
+      bio, 
+      skills, 
+      skillsToLearn, 
+      availability, 
+      photo,
+      // Learner fields
+      learningGoals,
+      // Mentor fields
+      qualifications,
+      certifications,
+      yearsOfExperience,
+      areasOfExpertise,
+      teachingStyle,
+      portfolio
+    } = req.body;
 
     // Build update object
     const updateData = {};
     
-    // Handle basic info updates
+    // Handle basic info updates (for both roles)
     if (name !== undefined) updateData.name = name;
-    if (title !== undefined) updateData.title = title;
     if (bio !== undefined) updateData.bio = bio;
 
     // Handle photo update (base64 string from client)
@@ -55,19 +83,7 @@ exports.updateProfile = async (req, res) => {
       updateData.photo = photo;
     }
 
-    // Handle skills update (skills the user can teach)
-    if (skills !== undefined) {
-      if (!Array.isArray(skills)) {
-        return res.status(400).json({ msg: "Skills must be an array" });
-      }
-      for (let skill of skills) {
-        if (!skill.name || !skill.type || !skill.level) {
-          return res.status(400).json({ msg: "Each skill must have name, type, and level" });
-        }
-      }
-      updateData.skills = skills;
-    }
-
+    // ==================== LEARNER FIELDS ====================
     // Handle skillsToLearn update (skills the user wants to learn)
     if (skillsToLearn !== undefined) {
       console.log("📝 Updating skillsToLearn:", skillsToLearn);
@@ -82,12 +98,76 @@ exports.updateProfile = async (req, res) => {
       updateData.skillsToLearn = skillsToLearn;
     }
 
+    // Handle learning goals update
+    if (learningGoals !== undefined) {
+      updateData.learningGoals = learningGoals;
+    }
+
+    // ==================== MENTOR FIELDS ====================
+    // Handle skills update (skills the user can teach)
+    if (skills !== undefined) {
+      if (!Array.isArray(skills)) {
+        return res.status(400).json({ msg: "Skills must be an array" });
+      }
+      for (let skill of skills) {
+        if (!skill.name || !skill.type || !skill.level) {
+          return res.status(400).json({ msg: "Each skill must have name, type, and level" });
+        }
+      }
+      updateData.skills = skills;
+    }
+
+    // Handle qualifications update
+    if (qualifications !== undefined) {
+      if (!Array.isArray(qualifications)) {
+        return res.status(400).json({ msg: "Qualifications must be an array" });
+      }
+      updateData.qualifications = qualifications;
+    }
+
+    // Handle certifications update
+    if (certifications !== undefined) {
+      if (!Array.isArray(certifications)) {
+        return res.status(400).json({ msg: "Certifications must be an array" });
+      }
+      updateData.certifications = certifications;
+    }
+
+    // Handle years of experience update
+    if (yearsOfExperience !== undefined) {
+      if (typeof yearsOfExperience !== 'number') {
+        return res.status(400).json({ msg: "Years of experience must be a number" });
+      }
+      updateData.yearsOfExperience = yearsOfExperience;
+    }
+
+    // Handle areas of expertise update
+    if (areasOfExpertise !== undefined) {
+      if (!Array.isArray(areasOfExpertise)) {
+        return res.status(400).json({ msg: "Areas of expertise must be an array" });
+      }
+      updateData.areasOfExpertise = areasOfExpertise;
+    }
+
+    // Handle teaching style update
+    if (teachingStyle !== undefined) {
+      updateData.teachingStyle = teachingStyle;
+    }
+
     // Handle availability update
     if (availability !== undefined) {
       if (!Array.isArray(availability)) {
         return res.status(400).json({ msg: "Availability must be an array" });
       }
       updateData.availability = availability;
+    }
+
+    // Handle portfolio update
+    if (portfolio !== undefined) {
+      if (!Array.isArray(portfolio)) {
+        return res.status(400).json({ msg: "Portfolio must be an array" });
+      }
+      updateData.portfolio = portfolio;
     }
 
     console.log("📝 Full updateData:", JSON.stringify(updateData));
@@ -118,6 +198,235 @@ exports.getAllUsers = async (req, res) => {
       .sort({ name: 1 });
     
     res.json(users);
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+};
+
+// Search users by name or skills (for finding mentors/learners)
+exports.searchUsers = async (req, res) => {
+  try {
+    const { query, role, category } = req.query;
+    const currentUserId = req.user.id;
+    
+    let filter = { _id: { $ne: currentUserId } };
+    
+    // Filter by role if specified
+    if (role) {
+      filter.role = role;
+    }
+    
+    // Search by name or bio
+    if (query) {
+      filter.$or = [
+        { name: { $regex: query, $options: 'i' } },
+        { bio: { $regex: query, $options: 'i' } }
+      ];
+    }
+    
+    const users = await User.find(filter)
+      .populate('skills')
+      .select("-password")
+      .sort({ rating: -1 })
+      .limit(50);
+    
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+};
+
+// Get learner's learning history (completed sessions)
+exports.getLearningHistory = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // Get sessions where user is learner and status is completed
+    const Session = require("../models/Session");
+    
+    const sessions = await Session.find({
+      learner: userId,
+      status: "completed"
+    })
+      .populate('mentor', 'name photo')
+      .populate('skillTopic')
+      .sort({ completedAt: -1 });
+    
+    // Calculate stats
+    const stats = {
+      totalSessions: sessions.length,
+      totalHours: sessions.reduce((sum, s) => sum + (s.duration || 0), 0),
+      skillsLearned: [...new Set(sessions.map(s => s.skillTopic?.skillName).filter(Boolean))]
+    };
+    
+    res.json({ sessions, stats });
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+};
+
+// Get mentor's completed sessions (for tracking)
+exports.getMentorSessions = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    const Session = require("../models/Session");
+    
+    const sessions = await Session.find({
+      mentor: userId,
+      status: "completed"
+    })
+      .populate('learner', 'name photo')
+      .populate('skillTopic')
+      .sort({ completedAt: -1 });
+    
+    // Calculate stats
+    const stats = {
+      totalSessions: sessions.length,
+      totalHours: sessions.reduce((sum, s) => sum + (s.duration || 0), 0),
+      studentsHelped: new Set(sessions.map(s => s.learner?._id)).size
+    };
+    
+    res.json({ sessions, stats });
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+};
+
+// Add review/rating to a user
+exports.addReview = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { rating, comment } = req.body;
+    const fromUserId = req.user.id;
+    
+    // Validate rating
+    if (rating < 1 || rating > 5) {
+      return res.status(400).json({ msg: "Rating must be between 1 and 5" });
+    }
+    
+    // Check if user already reviewed this person
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ msg: "User not found" });
+    }
+    
+    const existingReview = user.reviewsReceived.find(
+      r => r.fromUser.toString() === fromUserId
+    );
+    
+    if (existingReview) {
+      // Update existing review
+      existingReview.rating = rating;
+      existingReview.comment = comment;
+    } else {
+      // Add new review
+      user.reviewsReceived.push({
+        fromUser: fromUserId,
+        rating,
+        comment,
+        createdAt: new Date()
+      });
+    }
+    
+    // Recalculate average rating
+    if (user.reviewsReceived.length > 0) {
+      const avgRating = user.reviewsReceived.reduce((sum, r) => sum + r.rating, 0) / user.reviewsReceived.length;
+      user.rating = Math.round(avgRating * 10) / 10;
+    }
+    
+    await user.save();
+    
+    res.json({ message: "Review added successfully", user });
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+};
+
+// Get user's reviews
+exports.getUserReviews = async (req, res) => {
+  try {
+    let { userId } = req.params;
+    
+    // Handle "me" parameter to use authenticated user's ID
+    if (userId === "me") {
+      userId = req.user.id;
+    }
+    
+    const user = await User.findById(userId)
+      .select('rating reviewsReceived')
+      .populate('reviewsReceived.fromUser', 'name photo');
+    
+    if (!user) {
+      return res.status(404).json({ msg: "User not found" });
+    }
+    
+    res.json({
+      averageRating: user.rating,
+      reviewCount: user.reviewsReceived.length,
+      reviews: user.reviewsReceived
+    });
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+};
+
+// Get user's availability schedule
+exports.getAvailability = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    const user = await User.findById(userId).select('availability');
+    
+    if (!user) {
+      return res.status(404).json({ msg: "User not found" });
+    }
+    
+    res.json({ availability: user.availability });
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+};
+
+// Update availability schedule
+exports.updateAvailability = async (req, res) => {
+  try {
+    const { availability } = req.body;
+    
+    if (!Array.isArray(availability)) {
+      return res.status(400).json({ msg: "Availability must be an array" });
+    }
+    
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { availability },
+      { new: true }
+    ).select("-password");
+    
+    res.json({ message: "Availability updated", availability: user.availability });
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+};
+
+// Get learners for a mentor
+exports.getLearners = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    const Session = require("../models/Session");
+    
+    // Get unique learners from mentor's sessions
+    const sessions = await Session.find({ mentor: userId })
+      .select('learner')
+      .distinct('learner');
+    
+    // Fetch learner details
+    const learners = await User.find({ _id: { $in: sessions } })
+      .select('name photo email learningGoals bio')
+      .limit(50);
+    
+    res.json(learners);
   } catch (err) {
     res.status(500).json({ msg: err.message });
   }

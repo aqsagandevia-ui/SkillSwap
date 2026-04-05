@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 
@@ -10,6 +10,25 @@ export default function ForgotPassword() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [otpTimer, setOtpTimer] = useState(0);
+
+  // Timer effect for OTP expiry (1 minute countdown)
+  useEffect(() => {
+    if (otpTimer <= 0) return;
+    
+    const timer = setInterval(() => {
+      setOtpTimer((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          toast.warning("OTP has expired. Please request a new one.");
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [otpTimer]);
 
   const handleSendOtp = async (e) => {
     e.preventDefault();
@@ -43,6 +62,7 @@ export default function ForgotPassword() {
       }
       toast.success("OTP sent to your email!");
       setStep(2);
+      setOtpTimer(60); // Start 60-second countdown
     } catch (err) {
       toast.error("Server error. Please try again later.");
     } finally {
@@ -191,17 +211,21 @@ export default function ForgotPassword() {
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 text-center text-2xl tracking-widest font-mono"
                   placeholder="000000"
                   maxLength={6}
+                  disabled={otpTimer === 0}
                 />
                 <p className="mt-2 text-sm text-gray-500">OTP sent to {email}</p>
+                <p className={`mt-2 text-sm font-semibold ${otpTimer > 10 ? 'text-gray-600' : 'text-red-600'}`}>
+                  Expires in: <span className="font-mono">{otpTimer}s</span>
+                </p>
               </div>
               <button
                 type="submit"
-                disabled={isLoading || otp.length !== 6}
+                disabled={isLoading || otp.length !== 6 || otpTimer === 0}
                 className="w-full bg-gradient-to-r from-primary to-indigo-600 text-white py-3.5 rounded-xl font-semibold disabled:opacity-70"
               >
                 {isLoading ? "Verifying..." : "Verify OTP"}
               </button>
-              <button type="button" onClick={() => setStep(1)} className="w-full mt-3 text-gray-500 text-sm">Change email</button>
+              <button type="button" onClick={() => { setStep(1); setOtpTimer(0); setOtp(""); }} className="w-full mt-3 text-gray-500 text-sm">Change email</button>
             </form>
           )}
 

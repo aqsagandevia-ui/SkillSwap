@@ -28,6 +28,25 @@ const skillSchema = new mongoose.Schema({
     enum: ["beginner", "intermediate", "advanced", "expert"],
     default: "intermediate",
   },
+  image: {
+    type: String, // Base64 or URL for skill image
+    default: null,
+  },
+  overview: {
+    type: String,
+    trim: true,
+    default: "",
+  },
+  benefits: {
+    type: String,
+    trim: true,
+    default: "",
+  },
+  useCases: {
+    type: String,
+    trim: true,
+    default: "",
+  },
   createdAt: {
     type: Date,
     default: Date.now,

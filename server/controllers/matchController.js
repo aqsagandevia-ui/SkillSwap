@@ -1,5 +1,7 @@
 const User = require("../models/User");
 const Session = require("../models/Session");
+const Skill = require("../models/Skill");
+const SkillRequest = require("../models/SkillRequest");
 
 // Get matches for current user (based on skills learner wants to learn)
 exports.getMatches = async (req, res) => {
@@ -7,16 +9,157 @@ exports.getMatches = async (req, res) => {
     const me = await User.findById(req.user.id);
 
     // Get skills user wants to learn
-    const learnSkills = me.skills.filter(s => s.type === "learn").map(s => s.name.toLowerCase());
+    const learnSkills = me.skillsToLearn?.map(s => s.skillName?.toLowerCase()) || [];
 
     // Find users who can teach any of these skills
     const matches = await User.find({
       _id: { $ne: me._id },
-      "skills.type": "teach",
-      "skills.name": { $in: learnSkills }
-    }).select("name skills trustScore");
+      skills: { $exists: true, $ne: [] }
+    })
+      .populate('skills')
+      .select("name skills rating bio photo")
+      .limit(20);
 
     res.json(matches);
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+};
+
+// Create a skill exchange request
+exports.createRequest = async (req, res) => {
+  try {
+    const { mentorId, skillId, message } = req.body;
+    const learnerId = req.user.id;
+
+    // Validate mentor exists
+    const mentor = await User.findById(mentorId);
+    if (!mentor) {
+      return res.status(404).json({ msg: "Mentor not found" });
+    }
+
+    // Validate skill exists
+    const skill = await Skill.findById(skillId);
+    if (!skill) {
+      return res.status(404).json({ msg: "Skill not found" });
+    }
+
+    // Check if request already exists
+    const existingRequest = await SkillRequest.findOne({
+      learner: learnerId,
+      mentor: mentorId,
+      skillTopic: skillId
+    });
+
+    if (existingRequest) {
+      return res.status(400).json({ msg: "Request already exists" });
+    }
+
+    // Create new request
+    const newRequest = new SkillRequest({
+      learner: learnerId,
+      mentor: mentorId,
+      skillTopic: skillId,
+      message: message || "",
+      status: "pending"
+    });
+
+    await newRequest.save();
+    await newRequest.populate('learner', 'name photo email');
+    await newRequest.populate('mentor', 'name');
+    await newRequest.populate('skillTopic', 'skillName');
+
+    res.json({ message: "Request sent successfully", request: newRequest });
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+};
+
+// Get incoming requests for current user (mentor)
+exports.getIncomingRequests = async (req, res) => {
+  try {
+    const requests = await SkillRequest.find({
+      mentor: req.user.id,
+      status: "pending"
+    })
+      .populate('learner', 'name photo email bio rating')
+      .populate('skillTopic', 'skillName category')
+      .sort({ createdAt: -1 });
+
+    res.json(requests);
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+};
+
+// Get sent requests for current user (learner)
+exports.getSentRequests = async (req, res) => {
+  try {
+    const requests = await SkillRequest.find({
+      learner: req.user.id
+    })
+      .populate('mentor', 'name photo')
+      .populate('skillTopic', 'skillName category')
+      .sort({ createdAt: -1 });
+
+    res.json(requests);
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+};
+
+// Accept a skill exchange request
+exports.acceptRequest = async (req, res) => {
+  try {
+    const request = await SkillRequest.findById(req.params.id);
+
+    if (!request) {
+      return res.status(404).json({ msg: "Request not found" });
+    }
+
+    if (request.mentor.toString() !== req.user.id) {
+      return res.status(403).json({ msg: "Not authorized" });
+    }
+
+    request.status = "accepted";
+    request.respondedAt = new Date();
+    await request.save();
+
+    // Create a session
+    const newSession = new Session({
+      learner: request.learner,
+      mentor: request.mentor,
+      skillTopic: request.skillTopic,
+      skillRequest: request._id,
+      status: "scheduled"
+    });
+
+    await newSession.save();
+
+    res.json({ message: "Request accepted", request, session: newSession });
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+};
+
+// Reject a skill exchange request
+exports.rejectRequest = async (req, res) => {
+  try {
+    const request = await SkillRequest.findById(req.params.id);
+
+    if (!request) {
+      return res.status(404).json({ msg: "Request not found" });
+    }
+
+    if (request.mentor.toString() !== req.user.id) {
+      return res.status(403).json({ msg: "Not authorized" });
+    }
+
+    request.status = "rejected";
+    request.respondedAt = new Date();
+    await request.save();
+
+    res.json({ message: "Request rejected", request });
   } catch (err) {
     res.status(500).json({ msg: err.message });
   }
@@ -27,12 +170,12 @@ exports.createSession = async (req, res) => {
   const { teacherId, skill } = req.body;
   try {
     const session = await Session.create({
-      teacher: teacherId,
+      mentor: teacherId,
       learner: req.user.id,
-      skill,
-      status: "pending"
+      skillTopic: skill,
+      status: "scheduled"
     });
-    res.json({ message: "Session requested", session });
+    res.json({ message: "Session created", session });
   } catch (err) {
     res.status(500).json({ msg: err.message });
   }
@@ -42,9 +185,30 @@ exports.createSession = async (req, res) => {
 exports.getSessions = async (req, res) => {
   try {
     const sessions = await Session.find({
-      $or: [{ teacher: req.user.id }, { learner: req.user.id }]
-    }).populate("teacher learner", "name skills");
+      $or: [{ mentor: req.user.id }, { learner: req.user.id }]
+    })
+      .populate("mentor", "name photo")
+      .populate("learner", "name photo")
+      .populate("skillTopic", "skillName")
+      .sort({ createdAt: -1 });
     res.json(sessions);
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+};
+
+// Get all requests (for match page)
+exports.getAllRequests = async (req, res) => {
+  try {
+    const SkillRequest = require("../models/SkillRequest");
+    const requests = await SkillRequest.find()
+      .populate('learner', 'name photo')
+      .populate('mentor', 'name photo')
+      .populate('skillTopic', 'skillName')
+      .sort({ createdAt: -1 })
+      .limit(50);
+
+    res.json(requests);
   } catch (err) {
     res.status(500).json({ msg: err.message });
   }
@@ -55,7 +219,14 @@ exports.sendMessage = async (req, res) => {
   const { sessionId, text } = req.body;
   try {
     const session = await Session.findById(sessionId);
-    session.messages.push({ sender: req.user.id, text });
+    if (!session) {
+      return res.status(404).json({ msg: "Session not found" });
+    }
+
+    // Note: You may want to use a separate Message model for this
+    // For now, we'll store messages in the session
+    session.messages = session.messages || [];
+    session.messages.push({ sender: req.user.id, text, sentAt: new Date() });
     await session.save();
     res.json(session);
   } catch (err) {
@@ -63,20 +234,21 @@ exports.sendMessage = async (req, res) => {
   }
 };
 
-// Complete session + rating
+// Complete session
 exports.completeSession = async (req, res) => {
-  const { sessionId, rating, feedback } = req.body;
+  const { sessionId } = req.params;
   try {
     const session = await Session.findById(sessionId);
+    if (!session) {
+      return res.status(404).json({ msg: "Session not found" });
+    }
+
     session.status = "completed";
-    session.rating = rating;
-    session.feedback = feedback;
+    session.completedAt = new Date();
     await session.save();
 
-    // update teacher trustScore
-    const teacher = await User.findById(session.teacher);
-    teacher.trustScore = ((teacher.trustScore + rating) / 2).toFixed(2);
-    await teacher.save();
+    // Increment learner's sessionsCompleted
+    await User.findByIdAndUpdate(session.learner, { $inc: { sessionsCompleted: 1 } });
 
     res.json({ message: "Session completed", session });
   } catch (err) {

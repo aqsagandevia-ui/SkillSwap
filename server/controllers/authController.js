@@ -89,13 +89,18 @@ exports.saveGoogleTokens = async (req, res) => {
 // ------------------ REGISTER ------------------
 exports.register = async (req, res) => {
   try {
-    const { fullName, name, email, password } = req.body;
+    const { fullName, name, email, password, role } = req.body;
 
     // accept both fullName and name
     const userName = fullName || name;
 
     if (!userName || !/^[A-Za-z ]+$/.test(userName)) {
       return res.status(400).json({ msg: "Name can only contain letters" });
+    }
+
+    // Validate role
+    if (!role || !["learner", "mentor"].includes(role)) {
+      return res.status(400).json({ msg: "Role must be either 'learner' or 'mentor'" });
     }
 
     // check existing user
@@ -107,11 +112,12 @@ exports.register = async (req, res) => {
     // hash password
     const hashed = await bcrypt.hash(password, 10);
 
-    // create user
+    // create user with role
     await User.create({
       name: userName,
       email,
       password: hashed,
+      role: role,
     });
 
     res.status(201).json({
@@ -325,24 +331,33 @@ exports.resetPassword = async (req, res) => {
 // ------------------ SEND RESET OTP ------------------
 exports.sendResetOtp = async (req, res) => {
   try {
+    console.log("📨 sendResetOtp called");
+    console.log("📨 Request body:", req.body);
     const { email } = req.body;
+    console.log("📨 Extracted email:", email);
 
     if (!email) {
+      console.error("❌ Email is missing from request body");
       return res.status(400).json({ msg: "Email is required" });
     }
 
     const user = await User.findOne({ email });
+    console.log("🔍 User lookup result:", user ? "FOUND" : "NOT FOUND");
     
     // Always return success to prevent email enumeration
     if (!user) {
+      console.log("📨 User not found, returning success message");
       return res.status(200).json({ 
         success: true, 
         msg: "If an account exists with this email, you will receive an OTP" 
       });
     }
 
+    console.log("🔍 User provider:", user.provider);
+    
     // Check if user signed up with Google
     if (user.provider === "google") {
+      console.error("❌ User is a Google user, returning 400");
       return res.status(400).json({ 
         msg: "This account uses Google sign-in. Please use Google to log in." 
       });
@@ -360,7 +375,7 @@ exports.sendResetOtp = async (req, res) => {
       
       // Generate 6-digit OTP (for testing without email)
       const otp = "123456"; // Fixed OTP for development
-      const otpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+      const otpExpires = Date.now() + 1 * 60 * 1000; // 1 minute
 
       user.resetOtp = otp;
       user.resetOtpExpires = otpExpires;
@@ -376,7 +391,7 @@ exports.sendResetOtp = async (req, res) => {
 
     // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+    const otpExpires = Date.now() + 1 * 60 * 1000; // 1 minute
 
     user.resetOtp = otp;
     user.resetOtpExpires = otpExpires;
@@ -384,17 +399,29 @@ exports.sendResetOtp = async (req, res) => {
 
     console.log("📧 Creating transporter for:", emailUser);
     
-    // Create transporter
+    // Create transporter with TLS security
     const transporter = nodemailer.createTransport({
       service: "gmail",
+      secure: true, // Use TLS
+      port: 465,
       auth: {
         user: emailUser,
         pass: emailPass,
       },
     });
 
+    // Verify connection before sending
+    try {
+      console.log("🔍 Verifying SMTP connection...");
+      await transporter.verify();
+      console.log("✅ SMTP connection verified successfully");
+    } catch (verifyErr) {
+      console.error("❌ SMTP verification failed:", verifyErr.message);
+      throw new Error(`SMTP Connection Failed: ${verifyErr.message}`);
+    }
+
     const mailOptions = {
-      from: '"SkillSwap" <noreply@skillswap.com>',
+      from: emailUser, // Use actual email instead of generic address
       to: email,
       subject: "Password Reset OTP - SkillSwap",
       html: `
@@ -405,17 +432,19 @@ exports.sendResetOtp = async (req, res) => {
             <p style="font-size: 16px; color: #6B7280; margin-bottom: 10px;">Your OTP is:</p>
             <p style="font-size: 32px; font-weight: bold; color: #4F46E5; letter-spacing: 8px;">${otp}</p>
           </div>
-          <p style="color: #6B7280; font-size: 14px;">This OTP will expire in 10 minutes.</p>
+          <p style="color: #6B7280; font-size: 14px;">This OTP will expire in 1 minute.</p>
           <p style="color: #6B7280; font-size: 14px; margin-top: 20px;">If you didn't request this, please ignore this email.</p>
         </div>
       `,
     };
 
     console.log("📧 Attempting to send email to:", email);
+    console.log("📧 Mail options:", { from: mailOptions.from, to: mailOptions.to, subject: mailOptions.subject });
     
-    await transporter.sendMail(mailOptions);
+    const info = await transporter.sendMail(mailOptions);
     
     console.log("📧 Email sent successfully!");
+    console.log("📧 Response ID:", info.response);
 
     res.status(200).json({ 
       success: true, 
@@ -423,8 +452,38 @@ exports.sendResetOtp = async (req, res) => {
     });
 
   } catch (err) {
-    console.error("Send OTP Error:", err);
+    console.error("❌ Send OTP Error - Exception:", err.message);
+    console.error("❌ Error code:", err.code);
+    console.error("❌ Error name:", err.name);
+    console.error("❌ Full error:", JSON.stringify(err, null, 2));
+    
+    // Check if this is a Gmail authentication error
+    if (err.message && (err.message.includes("Invalid login") || err.message.includes("Invalid credentials"))) {
+      console.error("⚠️ Gmail authentication failed - check EMAIL_USER and EMAIL_PASS in .env");
+      console.error("⚠️ EMAIL_USER:", process.env.EMAIL_USER || "NOT SET");
+      return res.status(500).json({ 
+        msg: "Email service error: Invalid Gmail credentials. Please check EMAIL_USER and EMAIL_PASS in .env" 
+      });
+    }
+
+    // Check if it's SMTP connection error
+    if (err.code === "ECONNREFUSED" || err.message.includes("SMTP")) {
+      console.error("⚠️ SMTP Connection error - Gmail server may be unreachable");
+      return res.status(500).json({ 
+        msg: "Email service temporarily unavailable" 
+      });
+    }
+
+    // Check if it's a MongoDB error
+    if (err.name === "MongoError" || err.name === "MongoNetworkError") {
+      console.error("⚠️ Database connection error");
+      return res.status(500).json({ 
+        msg: "Database error - please try again" 
+      });
+    }
+    
     // Return success to prevent email enumeration even on error
+    console.warn("⚠️ Unexpected error occurred, returning safe response");
     res.status(200).json({ 
       success: true, 
       msg: "If an account exists with this email, you will receive an OTP" 

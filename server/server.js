@@ -62,6 +62,16 @@ app.get("/", (req, res) => {
   res.send("SkillSwap API & Socket Running 🚀");
 });
 
+// Debug Route - test if server is accessible
+app.get("/api/debug/test", (req, res) => {
+  res.json({ 
+    status: "ok", 
+    message: "Server is running",
+    timestamp: new Date(),
+    mongoConnected: isDbConnected()
+  });
+});
+
 // =====================
 // MongoDB Connection Helper
 // =====================
@@ -118,7 +128,6 @@ io.on("connection", (socket) => {
       console.warn("⚠️ MongoDB not connected - skipping user online status update");
       // Still broadcast status to clients for UI purposes
       io.emit("user_status_change", { userId, isOnline: true });
-      console.log(`✅ User ${userId} is now online (DB unavailable)`);
       return;
     }
     
@@ -131,7 +140,6 @@ io.on("connection", (socket) => {
     
     // Broadcast to all clients
     io.emit("user_status_change", { userId, isOnline: true });
-    console.log(`✅ User ${userId} is now online`);
   });
 
   // Handle user going offline
@@ -144,7 +152,6 @@ io.on("connection", (socket) => {
     if (!isDbConnected()) {
       console.warn("⚠️ MongoDB not connected - skipping user offline status update");
       io.emit("user_status_change", { userId, isOnline: false });
-      console.log(`❌ User ${userId} is now offline (DB unavailable)`);
       return;
     }
     
@@ -155,16 +162,26 @@ io.on("connection", (socket) => {
     }
     
     io.emit("user_status_change", { userId, isOnline: false });
-    console.log(`❌ User ${userId} is now offline`);
   });
 
   // Join a specific chat room for private messaging
   socket.on("join_chat", ({ senderId, receiverId }) => {
-    if (!senderId || !receiverId) return;
+    console.log("🔗 JOIN_CHAT event received");
+    console.log("  📤 Sender ID:", senderId);
+    console.log("  📥 Receiver ID:", receiverId);
+    
+    if (!senderId || !receiverId) {
+      console.log("❌ Missing sender or receiver ID");
+      return;
+    }
     
     const roomId = [senderId, receiverId].sort().join("_");
+    console.log("  🏠 Joining room:", roomId);
+    
     socket.join(roomId);
-    console.log(`📥 User ${senderId} joined chat room: ${roomId}`);
+    console.log("  ✅ Socket joined room:", roomId);
+    console.log("  📍 Socket ID:", socket.id);
+    console.log("  👥 Room members:", io.sockets.adapter.rooms.get(roomId)?.size || 0);
   });
 
   // Send private message
@@ -172,14 +189,34 @@ io.on("connection", (socket) => {
     // Check if database is connected
     if (!isDbConnected()) {
       console.warn("⚠️ MongoDB not connected - cannot send message");
+      socket.emit("message_error", { error: "Database not connected" });
       return;
     }
     
     try {
       const { senderId, receiverId, message, chatId } = data;
       
+      console.log("📨 Message event received:", { senderId, receiverId, messagePreview: message?.substring(0, 50) });
+      
       if (!message || !senderId || !receiverId) {
-        console.log("⚠️ Missing required fields for message");
+        console.log("❌ Missing required fields:", { message: !!message, senderId, receiverId });
+        socket.emit("message_error", { error: "Missing required fields" });
+        return;
+      }
+
+      if (senderId === receiverId) {
+        console.log("❌ Cannot send message to yourself");
+        socket.emit("message_error", { error: "Cannot send message to yourself" });
+        return;
+      }
+
+      // Get sender and receiver user objects for full info
+      const senderUser = await User.findById(senderId).select("name photo");
+      const receiverUser = await User.findById(receiverId).select("name photo");
+
+      if (!senderUser || !receiverUser) {
+        console.log("❌ Sender or receiver not found in database");
+        socket.emit("message_error", { error: "User not found" });
         return;
       }
 
@@ -188,27 +225,52 @@ io.on("connection", (socket) => {
         sender: senderId,
         receiver: receiverId,
         text: message,
-        chatId: chatId || [senderId, receiverId].sort().join("_")
+        chatId: chatId || [senderId, receiverId].sort().join("_"),
+        isRead: false
       });
-
-      // Populate sender info
-      await newMessage.populate("sender", "name photo");
 
       // Get the room ID
       const roomId = [senderId, receiverId].sort().join("_");
       
-      // Emit to the specific chat room
-      io.to(roomId).emit("receive_message", {
-        _id: newMessage._id,
-        sender: newMessage.sender,
-        receiver: { _id: receiverId },
-        text: newMessage.text,
-        createdAt: newMessage.createdAt
-      });
+      console.log(`✅ Message saved to DB (ID: ${newMessage._id})`);
+      console.log(`📢 Broadcasting to room: ${roomId}`);
 
-      console.log(`💬 Message sent from ${senderId} to ${receiverId}`);
+      // Prepare message data with full user info
+      const messageData = {
+        _id: newMessage._id,
+        sender: {
+          _id: senderUser._id,
+          name: senderUser.name,
+          photo: senderUser.photo
+        },
+        receiver: {
+          _id: receiverUser._id,
+          name: receiverUser.name,
+          photo: receiverUser.photo
+        },
+        text: newMessage.text,
+        createdAt: newMessage.createdAt,
+        isRead: newMessage.isRead
+      };
+      
+      // Emit to the chat room (both users will receive if they're in the room)
+      io.to(roomId).emit("receive_message", messageData);
+      console.log(`✅ Message emitted to room: ${roomId}`);
+      
+      // Also notify the receiver about the new message (for unread count update)
+      io.to(`user_${receiverId}`).emit("message_received", {
+        from: senderId,
+        message: messageData
+      });
+      console.log(`✅ Unread notification sent to user: ${receiverId}`);
+
+      // Send confirmation back to sender
+      socket.emit("message_sent", { _id: newMessage._id, success: true });
+      console.log(`✅ Confirmation sent to sender`);
+      
     } catch (err) {
       console.error("❌ Error sending message:", err.message);
+      socket.emit("message_error", { error: err.message });
     }
   });
 

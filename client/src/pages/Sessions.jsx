@@ -106,7 +106,7 @@ export default function Sessions() {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({ sessionId, liveLink: meetingLinkInput })
+        body: JSON.stringify({ sessionId, meetingLink: meetingLinkInput })
       });
 
       const data = await response.json();
@@ -130,7 +130,7 @@ export default function Sessions() {
 
   const openLinkModal = (session) => {
     setEditingSessionId(session._id);
-    setMeetingLinkInput(session.liveLink || "");
+    setMeetingLinkInput(session.meetingLink || "");
     setShowLinkModal(true);
   };
 
@@ -140,10 +140,6 @@ export default function Sessions() {
     setSendingRequest(true);
 
     try {
-      // Generate a unique Google Meet URL
-      const meetingId = generateMeetingId();
-      const googleMeetLink = `https://meet.google.com/${meetingId}`;
-
       const response = await fetch("/api/session", {
         method: "POST",
         headers: {
@@ -154,8 +150,7 @@ export default function Sessions() {
           teacherId: selectedTeacher._id,
           skill: requestForm.skill,
           date: requestForm.date,
-          time: requestForm.time,
-          liveLink: googleMeetLink
+          time: requestForm.time
         })
       });
 
@@ -169,7 +164,7 @@ export default function Sessions() {
       setShowRequestModal(false);
       setSelectedTeacher(null);
       setRequestForm({ skill: state?.skill?.skillName || "", date: "", time: "" });
-      alert("Session scheduled! Google Meet link has been created.");
+      alert("Session request sent! Teacher will confirm and create the meeting link.");
     } catch (err) {
       console.error("Error sending request:", err);
       alert(err.message);
@@ -206,8 +201,8 @@ export default function Sessions() {
     }
   };
 
-  const isTeacher = (session) => {
-    return currentUser && session.teacher && session.teacher._id === currentUser._id;
+  const isMentor = (session) => {
+    return currentUser && session.mentor && session.mentor._id === currentUser._id;
   };
 
   if (loading) {
@@ -259,8 +254,13 @@ export default function Sessions() {
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {sessions.map((session) => {
-              const amITeacher = isTeacher(session);
-              const otherUser = amITeacher ? session.learner : session.teacher;
+              const amIMentor = isMentor(session);
+              const otherUser = amIMentor ? session.learner : session.mentor;
+              
+              // Format date and time from scheduledAt
+              const scheduledDate = session.scheduledAt ? new Date(session.scheduledAt) : null;
+              const dateStr = scheduledDate ? scheduledDate.toLocaleDateString() : "N/A";
+              const timeStr = scheduledDate ? scheduledDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "N/A";
               
               return (
                 <div
@@ -269,77 +269,100 @@ export default function Sessions() {
                 >
                   <div className="p-6">
                     <div className="flex justify-between items-start mb-4">
-                      <h3 className="text-lg font-semibold text-gray-900">{session.skill}</h3>
+                      <h3 className="text-lg font-semibold text-gray-900">{session.skillTopic?.skillName || "Session"}</h3>
                       <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(session.status)}`}>
                         {session.status.charAt(0).toUpperCase() + session.status.slice(1)}
                       </span>
                     </div>
                     
-                    <div className="flex items-center gap-3 mb-4">
+                    <div className="text-sm text-gray-500 mb-4 flex items-center gap-1">
+                      <span className="font-medium">{amIMentor ? "Learner:" : "Mentor:"}</span>
+                      <span>{otherUser?.name || "User"}</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-3 mb-4 p-3 bg-gray-50 rounded-lg">
                       {otherUser?.photo ? (
                         <img
                           src={otherUser?.photo}
                           alt={otherUser?.name}
-                          className="w-10 h-10 rounded-full object-cover"
+                          className="w-12 h-12 rounded-full object-cover"
                         />
                       ) : (
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold">
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold">
                           {otherUser?.name ? otherUser.name.charAt(0).toUpperCase() : "?"}
                         </div>
                       )}
-                      <div>
-                        <p className="text-sm text-gray-500">{amITeacher ? "Learner" : "Teacher"}</p>
-                        <p className="font-medium text-gray-900">{otherUser?.name || "User"}</p>
+                      <div className="flex-1">
+                        <p className="text-xs text-gray-500 uppercase tracking-wider">{amIMentor ? "Learner" : "Mentor"}</p>
+                        <p className="font-semibold text-gray-900">{otherUser?.name || "User"}</p>
                       </div>
                     </div>
 
-                    {session.date && session.time && (
-                      <div className="flex items-center gap-2 text-sm text-gray-500 mb-4">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                        {session.date} at {session.time}
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2 text-sm text-gray-600 mb-4 p-3 bg-blue-50 rounded-lg">
+                      <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <span><strong>Scheduled:</strong> {dateStr} at {timeStr}</span>
+                    </div>
 
-                    {/* Show Accept button for teacher on pending sessions */}
-                    {amITeacher && session.status === "pending" && (
-                      <button
-                        onClick={() => handleAcceptSession(session._id)}
-                        className="w-full py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-medium rounded-xl hover:shadow-lg transition-all mb-2"
-                      >
-                        Accept Session
-                      </button>
-                    )}
-
-                    {/* Show Join Google Meet button for accepted sessions */}
-                    {session.status === "accepted" && session.liveLink && (
-                      <a
-                        href={session.liveLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block w-full text-center py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-medium rounded-xl hover:shadow-lg transition-all mb-2"
-                      >
-                        🎥 Join Google Meet
-                      </a>
-                    )}
-
-                    {/* Show button to update meeting link for teachers if needed */}
-                    {amITeacher && session.status === "accepted" && session.liveLink && (
-                      <button
-                        onClick={() => openLinkModal(session)}
-                        className="w-full py-2 bg-gray-400 text-white font-medium rounded-xl hover:bg-gray-500 transition-all text-sm"
-                      >
-                        Change Meeting Link
-                      </button>
-                    )}
-
-                    {/* Show waiting message for learners when no valid link */}
-                    {!amITeacher && session.status === "accepted" && !session.liveLink && (
-                      <div className="text-center py-2 text-sm text-gray-500 bg-yellow-50 rounded-xl p-2">
-                        ⏳ Waiting for teacher to confirm...
-                      </div>
-                    )}
+                    {/* Status-based actions */}
+                    <div className="space-y-2">
+                      {/* For Mentors: Accept pending sessions and create link */}
+                      {amIMentor && session.status === "pending" && (
+                        <div className="space-y-2">
+                          <p className="text-xs text-gray-600 bg-blue-50 p-2 rounded-lg">
+                            💡 <strong>You control the meeting</strong> - Accept to create the link
+                          </p>
+                          <button
+                            onClick={() => handleAcceptSession(session._id)}
+                            className="w-full py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-semibold rounded-xl hover:shadow-lg transition-all"
+                          >
+                            ✅ Accept & Create Meeting Link
+                          </button>
+                        </div>
+                      )}
+                      
+                      {/* For Learners: Waiting for mentor to accept and create link */}
+                      {!amIMentor && session.status === "pending" && (
+                        <div className="space-y-2">
+                          <p className="text-xs text-gray-600 bg-purple-50 p-2 rounded-lg">
+                            💡 <strong>Mentor creates the link</strong> - Waiting for mentor to accept...
+                          </p>
+                          <div className="w-full py-3 bg-yellow-50 border-2 border-yellow-200 text-yellow-800 font-medium rounded-xl text-center">
+                            ⏳ Waiting for mentor to accept...
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* When session is accepted: Show join button if link exists */}
+                      {session.status === "accepted" && session.meetingLink && (
+                        <a
+                          href={session.meetingLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block w-full text-center py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-semibold rounded-xl hover:shadow-lg transition-all"
+                        >
+                          🎥 Join Google Meet
+                        </a>
+                      )}
+                      
+                      {/* For mentors: Option to update meeting link */}
+                      {amIMentor && session.status === "accepted" && session.meetingLink && (
+                        <button
+                          onClick={() => openLinkModal(session)}
+                          className="w-full py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-medium rounded-xl transition-all text-sm"
+                        >
+                          🔗 Update Meeting Link
+                        </button>
+                      )}
+                      
+                      {/* Waiting message for learners when link not yet created */}
+                      {!amIMentor && session.status === "accepted" && !session.meetingLink && (
+                        <div className="w-full py-3 bg-yellow-50 border-2 border-yellow-200 text-yellow-800 font-medium rounded-xl text-center">
+                          ⏳ Mentor is setting up the meeting...
+                        </div>
+                      )}
+                    </div>
 
                     {/* Show rating for completed sessions */}
                     {session.status === "completed" && session.rating && (

@@ -36,12 +36,24 @@ const sessionSchema = new mongoose.Schema({
   // Session details
   status: {
     type: String,
-    enum: ["scheduled", "ongoing", "completed", "cancelled", "no-show"],
+    enum: ["scheduled", "pending", "accepted", "ongoing", "completed", "cancelled", "no-show"],
     default: "scheduled",
   },
   
   // Meeting link
   meetingLink: {
+    type: String,
+    default: null,
+  },
+  
+  // Google Event ID (for calendar integration)
+  googleEventId: {
+    type: String,
+    default: null,
+  },
+  
+  // Live link (alias for meetingLink)
+  liveLink: {
     type: String,
     default: null,
   },

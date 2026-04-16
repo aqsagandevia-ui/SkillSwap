@@ -1,12 +1,15 @@
 const User = require("../models/User");
 const Session = require("../models/Session");
+const Skill = require("../models/Skill");
 
 // Get all sessions for current user
 exports.getSessions = async (req, res) => {
   try {
     const sessions = await Session.find({
-      $or: [{ teacher: req.user.id }, { learner: req.user.id }]
-    }).populate("teacher learner", "name photo email");
+      $or: [{ mentor: req.user.id }, { learner: req.user.id }]
+    }).populate("mentor", "name photo email role bio")
+      .populate("learner", "name photo email role bio")
+      .populate("skillTopic", "skillName");
     res.json(sessions);
   } catch (err) {
     res.status(500).json({ msg: err.message });
@@ -19,22 +22,46 @@ exports.createSession = async (req, res, next) => {
   console.log('[SESSION CONTROLLER] req.user:', req.user);
   console.log('[SESSION CONTROLLER] req.body:', req.body);
   
-  const { teacherId, skill, date, time } = req.body;
+  const { teacherId, mentorId, skill, date, time } = req.body;
+  const mentor = teacherId || mentorId; // Support both field names
+  
+  if (!mentor) {
+    return res.status(400).json({ msg: "teacherId or mentorId is required" });
+  }
+  
   try {
-    console.log('[SESSION CONTROLLER] Creating session with:', { teacherId, learnerId: req.user.id, skill, date, time });
+    let skillTopicId;
+    
+    if (typeof skill === 'string') {
+      const skillDoc = await Skill.findOne({ 
+        skillName: { $regex: new RegExp(`^${skill.trim()}$`, 'i') } 
+      }).select('_id');
+      
+      if (!skillDoc) {
+        return res.status(400).json({ msg: `Skill "${skill}" not found. Please create the skill first or check spelling.` });
+      }
+      skillTopicId = skillDoc._id;
+      console.log(`[SESSION CONTROLLER] Found skill "${skill}" with ID:`, skillTopicId);
+    } else if (skill && typeof skill === 'object' && skill._id) {
+      skillTopicId = skill._id;
+    } else {
+      return res.status(400).json({ msg: 'Invalid skill provided. Must be skill name (string) or skill object with _id.' });
+    }
+    
+    console.log('[SESSION CONTROLLER] Creating session with:', { mentor, learnerId: req.user.id, skillTopicId, date, time });
     
     const session = await Session.create({
-      teacher: teacherId,
+      mentor: mentor,
       learner: req.user.id,
-      skill,
-      date,
-      time,
-      status: "pending",
-      liveLink: null
+      skillTopic: skillTopicId,
+      scheduledAt: new Date(`${date}T${time}`),
+      status: "pending"
     });
 
-    // Populate teacher and learner details
-    await session.populate("teacher learner", "name photo email");
+    // Populate mentor and learner details
+    await session.populate("mentor", "name photo email role bio")
+      .populate("learner", "name photo email role bio")
+      .populate("skillTopic", "skillName");
 
     console.log('[SESSION CONTROLLER] Session created successfully:', session._id);
     res.json({ message: "Session request sent", session });
@@ -44,27 +71,27 @@ exports.createSession = async (req, res, next) => {
   }
 };
 
-// Accept session (teacher accepts and generates meeting link)
+// Accept session (MENTOR ONLY: accepts and automatically generates meeting link)
 exports.acceptSession = async (req, res) => {
   const { sessionId } = req.body;
   try {
     const session = await Session.findById(sessionId);
     if (!session) return res.status(404).json({ msg: "Session not found" });
 
-    // Verify the current user is the teacher
-    if (session.teacher.toString() !== req.user.id) {
-      return res.status(403).json({ msg: "Only the teacher can accept this session" });
+    // ⭐ SECURITY: Only mentor can accept and create the meeting link
+    if (session.mentor.toString() !== req.user.id) {
+      return res.status(403).json({ msg: "Only the mentor can accept this session and create the meeting link" });
     }
 
     // Get teacher details
     const teacher = await User.findById(req.user.id);
 
     // Parse date and time
-    const startTime = new Date(`${session.date}T${session.time}:00`);
+    const startTime = new Date(session.scheduledAt);
     const endTime = new Date(startTime.getTime() + 60 * 60 * 1000); // 1 hour session
     
-    const meetingTitle = `SkillSwap Session: ${session.skill}`;
-    const meetingDescription = `Skill exchange session for ${session.skill} between ${teacher.name} and learner`;
+    const meetingTitle = `SkillSwap Session: ${session.skillTopic}`;
+    const meetingDescription = `Skill exchange session for ${session.skillTopic} between ${teacher.name} and learner`;
 
     let liveLink = null;
     let googleEventId = null;
@@ -93,12 +120,15 @@ exports.acceptSession = async (req, res) => {
     }
 
     // Store the meeting link
-    session.liveLink = liveLink;
+    session.meetingLink = liveLink;
+    session.liveLink = liveLink; // Also set liveLink for consistency
     session.googleEventId = googleEventId;
     session.status = "accepted";
     
     await session.save();
-    await session.populate("teacher learner", "name photo email");
+    await session.populate("mentor", "name photo email role bio")
+      .populate("learner", "name photo email role bio")
+      .populate("skillTopic", "skillName");
 
     res.json({ message: "Session accepted", session });
   } catch (err) {
@@ -140,13 +170,18 @@ exports.completeSession = async (req, res) => {
 
     await session.save();
 
-    // Update teacher trustScore
-    const teacher = await User.findById(session.teacher);
-    if (teacher) {
-      const currentScore = teacher.trustScore || 0;
-      teacher.trustScore = ((currentScore + rating) / 2).toFixed(2);
-      await teacher.save();
+    // Update mentor trustScore
+    const mentor = await User.findById(session.mentor);
+    if (mentor) {
+      const currentScore = mentor.trustScore || 0;
+      mentor.trustScore = ((currentScore + rating) / 2).toFixed(2);
+      await mentor.save();
     }
+
+    // Populate for response
+    await session.populate("mentor", "name photo email role bio")
+      .populate("learner", "name photo email role bio")
+      .populate("skillTopic", "skillName");
 
     res.json({ message: "Session completed", session });
   } catch (err) {
@@ -154,23 +189,26 @@ exports.completeSession = async (req, res) => {
   }
 };
 
-// Update meeting link (teacher can manually update the meeting link)
+// Update meeting link (MENTOR ONLY: mentor can manually update the meeting link)
 exports.updateMeetingLink = async (req, res) => {
-  const { sessionId, liveLink } = req.body;
+  const { sessionId, meetingLink } = req.body;
   try {
     const session = await Session.findById(sessionId);
     if (!session) return res.status(404).json({ msg: "Session not found" });
 
-    // Verify the current user is the teacher
-    if (session.teacher.toString() !== req.user.id) {
-      return res.status(403).json({ msg: "Only the teacher can update the meeting link" });
+    // ⭐ SECURITY: Only mentor can update the meeting link
+    if (session.mentor.toString() !== req.user.id) {
+      return res.status(403).json({ msg: "Only the mentor can update the meeting link" });
     }
 
     // Update the meeting link
-    session.liveLink = liveLink;
+    session.meetingLink = meetingLink;
+    session.liveLink = meetingLink; // Also set liveLink for consistency
     
     await session.save();
-    await session.populate("teacher learner", "name photo email");
+    await session.populate("mentor", "name photo email role bio")
+      .populate("learner", "name photo email role bio")
+      .populate("skillTopic", "skillName");
 
     res.json({ message: "Meeting link updated", session });
   } catch (err) {
